@@ -15,13 +15,11 @@ void CudaErrors::checkCublasStatus(cublasStatus_t cublasStatus, char* descriptio
 void CudaErrors::checkCudnnStatus(cudnnStatus_t cudnnStatus, char* description) {
 	if (cudnnStatus != CUDNN_STATUS_SUCCESS) {
 		std::cout << description << ": " << getCudnnStatus(cudnnStatus) << std::endl;
-	}	
+	}
 }
 
-const char* CudaErrors::getCublasStatus(cublasStatus_t cublasStatus)
-{
-	switch (cublasStatus)
-	{
+const char* CudaErrors::getCublasStatus(cublasStatus_t cublasStatus) {
+	switch (cublasStatus) {
 	case CUBLAS_STATUS_NOT_INITIALIZED:
 		return "CUBLAS_STATUS_NOT_INITIALIZED";
 	case CUBLAS_STATUS_ALLOC_FAILED:
@@ -41,10 +39,8 @@ const char* CudaErrors::getCublasStatus(cublasStatus_t cublasStatus)
 	return "cublasStatus <unknown>";
 }
 
-const char* CudaErrors::getCudnnStatus(cudnnStatus_t cudnnStatus)
-{
-	switch (cudnnStatus)
-	{
+const char* CudaErrors::getCudnnStatus(cudnnStatus_t cudnnStatus) {
+	switch (cudnnStatus) {
 	case CUDNN_STATUS_ALLOC_FAILED:
 		return "CUDNN_STATUS_ALLOC_FAILED";
 	case CUDNN_STATUS_ARCH_MISMATCH:

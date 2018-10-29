@@ -4,7 +4,7 @@
 
 #define LIBRARY_EXPORT __declspec(dllexport)
 
-extern "C" LIBRARY_EXPORT CudaNeuralNetwork* new_CudaNeuralNetwork(int BatchSizes, int InputDimensions[], int HiddenDimensions[], int PoolingLayers[], int Layers, bool useCudNN);
+extern "C" LIBRARY_EXPORT CudaNeuralNetwork* new_CudaNeuralNetwork(int BatchSizes, int InputDimensions[], int HiddenDimensions[], int PoolingLayers[], int Layers, bool useCudNN, bool regression);
 
 extern "C" LIBRARY_EXPORT void delete_NeuralNetwork(CudaNeuralNetwork* instance);
 

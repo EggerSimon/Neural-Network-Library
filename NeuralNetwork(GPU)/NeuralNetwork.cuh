@@ -21,7 +21,7 @@
 class CudaNeuralNetwork {
 
 public:
-	CudaNeuralNetwork(int batchSizes, int inputDimensions[], int hiddenDimensions[], int poolingLayers[], int layers, bool useCudNN);
+	CudaNeuralNetwork(int batchSizes, int inputDimensions[], int hiddenDimensions[], int poolingLayers[], int layers, bool useCudNN, bool regression);
 
 	float* runNeuralNetwork(float input[], int categoryCount, int batchCount, bool backPropagationActive);
 	void updateLearningRate(float learningRate);

@@ -16,64 +16,51 @@
 3 * (n-1) + 3: ResultsMatrixDimension (eg. 8x8)
 */
 
-float CudaNeuralNetwork::constCalculator(float l[])
-{
-	if (l[0] > 0)
-	{
+float CudaNeuralNetwork::constCalculator(float l[]) {
+	if (l[0] > 0) {
 		backProp_variables = new float[2];
 		backProp_variables[0] = l[0];
 		backProp_variables[1] = l[1];
 	}
-	else if (l[0] == -1)
-	{
-		if (category == 6)
-		{
+	else if (l[0] == -1) {
+		if (category == 6) {
 			return backProp_variables[0] * 100;
 		}
 		return backProp_variables[0];
 	}
-	else if (l[1] == -1)
-	{
+	else if (l[1] == -1) {
 		return backProp_variables[1];
 	}
 }
 
-CudaNeuralNetwork::CudaNeuralNetwork(int batchSize, int inputDimensions[], int hiddenDimensions[], int poolingLayers[], int layers, bool useCudNN)
-{
-	variables.allocateGPUMemory(inputDimensions, hiddenDimensions, poolingLayers, batchSize, layers, useCudNN);
+CudaNeuralNetwork::CudaNeuralNetwork(int batchSize, int inputDimensions[], int hiddenDimensions[], int poolingLayers[], int layers, bool useCudNN, bool regression) {
+	variables.allocateGPUMemory(inputDimensions, hiddenDimensions, poolingLayers, batchSize, layers, useCudNN, regression);
 	kernelSizes = new dim3[2];
 }
 
-void CudaNeuralNetwork::freeMemorySpace()
-{
+void CudaNeuralNetwork::freeMemorySpace() {
 	variables.freeMemorySpace();
 }
 
-void CudaNeuralNetwork::updateFilterWeights(float** filterMatrixPointer, float** biasMatrixPointer)
-{
+void CudaNeuralNetwork::updateFilterWeights(float** filterMatrixPointer, float** biasMatrixPointer) {
 	int Error = variables.updateFilterWeights(filterMatrixPointer, biasMatrixPointer);
 }
 
-void CudaNeuralNetwork::updateLearningRate(float learningRate)
-{
+void CudaNeuralNetwork::updateLearningRate(float learningRate) {
 	backPropagation.updateLearningRate(learningRate);
 }
 
 //Initialize FilterMatrix-Variables
-void CudaNeuralNetwork::initializeVariables(float** filterMatrices, float** bias, float** pRelu, int layers, float learningRate, float momentum, float weightDecay, int batchSize)
-{
+void CudaNeuralNetwork::initializeVariables(float** filterMatrices, float** bias, float** pRelu, int layers, float learningRate, float momentum, float weightDecay, int batchSize) {
 	backPropagation.initializeConstants(learningRate, momentum, weightDecay, batchSize);
 	variables.initializeVariables(filterMatrices, bias, pRelu, layers);
 	constCalculator(new float[2]{ learningRate, momentum });
 }
 
 //Calculates the needed size of the Kernels, depending on the users NeuralNetwork-Size
-void CudaNeuralNetwork::setKernelSizes(int size)
-{
-	for (int i = 256; i >= 8; i /= 2)
-	{
-		if (size % i == 0)
-		{
+void CudaNeuralNetwork::setKernelSizes(int size) {
+	for (int i = 256; i >= 8; i /= 2) {
+		if (size % i == 0) {
 			kernelSizes[0].x = size / i;
 			kernelSizes[1].x = i;
 			i = 7;
@@ -81,8 +68,7 @@ void CudaNeuralNetwork::setKernelSizes(int size)
 	}
 }
 
-float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int batchCount, bool backPropagationActive)
-{
+float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int batchCount, bool backPropagationActive) {
 	cublasStatus_t cublasStatus;
 	cudnnStatus_t cudnnStatus;
 
@@ -104,19 +90,16 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 		variables.layer_descriptor[1], &variables.d_LayerResults[l_offset]);
 	cudaErrors.checkCudnnStatus(cudnnStatus, "ERR_FORWARD (Layer)");
 
-	if (variables.filterMatrix.poolingLayers[0] == 1)
-	{
+	if (variables.filterMatrix.poolingLayers[0] == 1) {
 		p_offset = layerCalculation.poolingOffsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, 0);
 		cudnnStatus = cudnnPoolingForward(variables.cudnn, variables.pooling_descriptor[0], &alpha, variables.layer_descriptor[1], variables.d_LayerResults, &beta,
 			variables.poolinglayer_descriptor[0], variables.d_PoolingResults + p_offset);
 		cudaErrors.checkCudnnStatus(cudnnStatus, "ERR_FORWARD (Pooling)");
 	}
 
-	for (int i = 1; i <= variables.filterMatrix.layers; i++)
-	{
+	for (int i = 1; i <= variables.filterMatrix.layers; i++) {
 		//Fully Connected (if Weight Dimensions is equal to Layer Width of previous Layer
-		if (variables.filterMatrix.h_HiddenDimensions[i * 4 + 2] == variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4])
-		{
+		if (variables.filterMatrix.h_HiddenDimensions[i * 4 + 2] == variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4]) {
 			int* dim = new int[3]{ variables.filterMatrix.h_HiddenDimensions[i * 4 + 1], variables.filterMatrix.h_HiddenDimensions[i * 4],
 				variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4 + 1] * (int)pow(variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4],2) };
 
@@ -136,11 +119,9 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 			cudaErrors.checkCudnnStatus(cudnnStatus, "ERR_FORWARD (Fully Connected)");
 		}
 		//Convolutional Layer
-		else
-		{
+		else {
 			//If the previous Layer is a Pooling Layer
-			if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 1)
-			{
+			if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 1) {
 				p_offset = layerCalculation.poolingOffsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i);
 				l_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1, 0);
 
@@ -151,8 +132,7 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 				cudaErrors.checkCudnnStatus(cudnnStatus, "ERR_FORWARD (Convolution)");
 			}
 			//If the previous Layer isnt a Pooling Layer
-			else
-			{
+			else {
 				last_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i, 0);
 				l_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1, 0);
 
@@ -165,11 +145,9 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 		}
 
 		//If the Layer isn't the Output Layer
-		if (i < variables.filterMatrix.layers)
-		{
+		if (i < variables.filterMatrix.layers) {
 			//Max Pooling Layer
-			if (variables.filterMatrix.poolingLayers[i * 3] == 1)
-			{
+			if (variables.filterMatrix.poolingLayers[i * 3] == 1) {
 				p_offset = layerCalculation.poolingOffsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1);
 				l_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1, 0);
 				cudnnStatus = cudnnPoolingForward(variables.cudnn, variables.pooling_descriptor[i], &alpha, variables.layer_descriptor[i + 1], &variables.d_LayerResults[l_offset],
@@ -179,19 +157,20 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 		}
 	}
 
-	//SoftMax Calculation (Exponential Probability)
-	int softMaxOffset = variables.filterMatrix.h_HiddenDimensions[variables.filterMatrix.layers * 4 + 1] *
-		pow(variables.filterMatrix.h_HiddenDimensions[variables.filterMatrix.layers * 4], 2) * batchCount;
+	if (!variables.regression) {
+		//SoftMax Calculation (Exponential Probability)
+		int softMaxOffset = variables.filterMatrix.h_HiddenDimensions[variables.filterMatrix.layers * 4 + 1] *
+			pow(variables.filterMatrix.h_HiddenDimensions[variables.filterMatrix.layers * 4], 2) * batchCount;
 
-	kernelSizes[0].x = variables.filterMatrix.h_HiddenDimensions[variables.filterMatrix.layers * 4 + 1] * 5;
-	kernelSizes[1].x = variables.filterMatrix.h_HiddenDimensions[(variables.filterMatrix.layers - 1) * 4 + 1] *
-		pow(variables.filterMatrix.h_HiddenDimensions[variables.filterMatrix.layers * 4 + 2], 2) / 5;
+		kernelSizes[0].x = variables.filterMatrix.h_HiddenDimensions[variables.filterMatrix.layers * 4 + 1] * 5;
+		kernelSizes[1].x = variables.filterMatrix.h_HiddenDimensions[(variables.filterMatrix.layers - 1) * 4 + 1] *
+			pow(variables.filterMatrix.h_HiddenDimensions[variables.filterMatrix.layers * 4 + 2], 2) / 5;
 
-	layerCalculation.cudaSoftMaxCalculation(variables.d_LayerResults, variables.d_SoftMaxResults, variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers,
-		batchCount, variables.filterMatrix.layers + 1, softMaxOffset, kernelSizes);
+		layerCalculation.cudaSoftMaxCalculation(variables.d_LayerResults, variables.d_SoftMaxResults, variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers,
+			batchCount, variables.filterMatrix.layers + 1, softMaxOffset, kernelSizes);
+	}
 
-	if (batchCount + 1 == variables.filterMatrix.batchSize && backPropagationActive)
-	{
+	if (batchCount + 1 == variables.filterMatrix.batchSize && backPropagationActive) {
 		int error_offset;
 
 		//Initializes Variables used in all BackPropagation Methods
@@ -204,18 +183,15 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 		kernelSizes[1] = variables.filterMatrix.h_HiddenDimensions[variables.filterMatrix.layers * 4 + 1];
 		backPropagation.results_ErrorCalculation(kernelSizes);
 
-		for (int i = variables.filterMatrix.layers; i > 0; i--)
-		{
+		for (int i = variables.filterMatrix.layers; i > 0; i--) {
 			//FullyConnected Layer with Pooling
 			if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 1 &&
-				variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4] == variables.filterMatrix.h_HiddenDimensions[i * 4 + 2] * variables.filterMatrix.poolingLayers[(i - 1) * 3 + 1])
-			{
+				variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4] == variables.filterMatrix.h_HiddenDimensions[i * 4 + 2] * variables.filterMatrix.poolingLayers[(i - 1) * 3 + 1]) {
 				setKernelSizes(variables.filterMatrix.h_HiddenDimensions[i * 4 + 1] * pow(variables.filterMatrix.h_HiddenDimensions[i * 4], 2) * variables.filterMatrix.batchSize);
 				backPropagation.poolingFCLayer_ErrorCalculation((i - 1), kernelSizes);
 			}
 			//FullyConnected Layer
-			else if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 0 && variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4] == variables.filterMatrix.h_HiddenDimensions[i * 4 + 2])
-			{
+			else if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 0 && variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4] == variables.filterMatrix.h_HiddenDimensions[i * 4 + 2]) {
 				error_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1, 0);
 				l_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i, 0);
 
@@ -231,8 +207,7 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 				cudaErrors.checkCudnnStatus(cudnnStatus, "ERR_GRADIENT (Fully Connected)");
 			}
 			//Convolutional Layer with Pooling
-			else if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 1)
-			{
+			else if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 1) {
 				error_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1, 0);
 				l_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i, 0);
 				p_offset = layerCalculation.poolingOffsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i);
@@ -253,8 +228,7 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 				cudaErrors.checkCudnnStatus(cudnnStatus, "ERR_GRADIENT (Convolution)");
 			}
 			//Convolutional Layer without Pooling
-			else
-			{
+			else {
 				error_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1, 0);
 				l_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i, 0);
 
@@ -271,20 +245,15 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 		}
 
 		/*BackPropagation*/
-
-		for (int i = variables.filterMatrix.layers - 1; i >= 0; i--)
-		{
-			if (i > 0)
-			{
+		for (int i = variables.filterMatrix.layers - 1; i >= 0; i--) {
+			if (i > 0) {
 				//Fully Connected
-				if (variables.filterMatrix.h_HiddenDimensions[i * 4 + 2] == variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4])
-				{
+				if (variables.filterMatrix.h_HiddenDimensions[i * 4 + 2] == variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4]) {
 					int* dim = new int[3]{ variables.filterMatrix.h_HiddenDimensions[i * 4 + 1], variables.filterMatrix.h_HiddenDimensions[i * 4],
 						variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4 + 1] * (int)pow(variables.filterMatrix.h_HiddenDimensions[(i - 1) * 4],2) };
 
 					//With Pooling Input
-					if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 1)
-					{
+					if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 1) {
 						last_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1, 0);
 						p_offset = layerCalculation.poolingOffsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i);
 						cublasStatus = cublasSgemm(variables.cublas, CUBLAS_OP_T, CUBLAS_OP_T, dim[2], dim[0], dim[1], &learningrate, variables.d_LayerResults + l_offset,
@@ -292,8 +261,7 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 						cudaErrors.checkCudnnStatus(cudnnStatus, "ERR_BACKWARD (Fully Connected & Pooling)");
 					}
 					//Without Pooling Input
-					else
-					{
+					else {
 						l_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i, 0);
 						last_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1, 0);
 						cublasStatus = cublasSgemm(variables.cublas, CUBLAS_OP_T, CUBLAS_OP_T, dim[2], dim[0], dim[1], &learningrate, variables.d_LayerResults + l_offset,
@@ -302,11 +270,9 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 					}
 				}
 				//Convolution
-				else
-				{
+				else {
 					//With Pooling Input
-					if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 1)
-					{
+					if (variables.filterMatrix.poolingLayers[(i - 1) * 3] == 1) {
 						last_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1, 0);
 						p_offset = layerCalculation.poolingOffsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i);
 						cudnnStatus = cudnnConvolutionBackwardFilter(variables.cudnn, &learningrate, variables.poolinglayer_descriptor[i - 1], variables.d_PoolingResults + p_offset,
@@ -315,8 +281,7 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 						cudaErrors.checkCudnnStatus(cudnnStatus, "ERR_BACKWARD (Convolution & Pooling)");
 					}
 					//Without Pooling Input
-					else
-					{
+					else {
 						last_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i + 1, 0);
 						l_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i, 0);
 						cudnnStatus = cudnnConvolutionBackwardFilter(variables.cudnn, &learningrate, variables.layer_descriptor[i], variables.d_LayerResults + l_offset,
@@ -327,11 +292,9 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 				}
 			}
 			//Input Layer
-			else
-			{
+			else {
 				//Fully Connected Layer
-				if (variables.filterMatrix.h_HiddenDimensions[i * 4 + 2] == variables.filterMatrix.h_InputDimensions[0])
-				{
+				if (variables.filterMatrix.h_HiddenDimensions[i * 4 + 2] == variables.filterMatrix.h_InputDimensions[0]) {
 					int* dim = new int[3]{ variables.filterMatrix.h_HiddenDimensions[i * 4 + 1], variables.filterMatrix.h_HiddenDimensions[i * 4],
 						variables.filterMatrix.h_InputDimensions[1] * (int)pow(variables.filterMatrix.h_InputDimensions[0],2) };
 
@@ -342,8 +305,7 @@ float* CudaNeuralNetwork::runNeuralNetwork(float input[], int categoryCount, int
 					cudaErrors.checkCudnnStatus(cudnnStatus, "ERR_BACKWARD (Fully Connected)");
 				}
 				//Convolutional Layer
-				else
-				{
+				else {
 					l_offset = layerCalculation.offsetCalculation(variables.filterMatrix.h_HiddenDimensions, variables.filterMatrix.poolingLayers, batchCount, i, 0);
 					cudnnStatus = cudnnConvolutionBackwardFilter(variables.cudnn, &learningrate, variables.layer_descriptor[i], variables.d_ImageParts, variables.layer_descriptor[i + 1],
 						variables.d_TotalErrors + l_offset, variables.convolution_descriptor[i], variables.bwd_filter_algorithm[i], variables.d_BwdFilterWorkspace[i],

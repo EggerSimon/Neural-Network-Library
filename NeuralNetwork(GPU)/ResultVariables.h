@@ -11,7 +11,7 @@
 
 class ResultVariables {
 public:
-	int allocateGPUMemory(int inputDimensions[], int hiddenDimensions[], int poolingLayers[], int batchSize, int layers, bool useCudNN);
+	int allocateGPUMemory(int inputDimensions[], int hiddenDimensions[], int poolingLayers[], int batchSize, int layers, bool useCudNN, bool reg);
 	int initializeVariables(float** filterMatrices, float** bias, float** pRelu, int layers);
 	int updateFilterWeights(float** filterMatrixPointer, float** biasMatrixPointer);
 	int freeMemorySpace();
@@ -28,6 +28,7 @@ public:
 	float* h_Results;
 
 	bool useCudNN;
+	bool regression;
 	size_t* workspace_bytes;
 	size_t* bwdWorkspace_bytes;
 	size_t* bwdfilterWorkspace_bytes;
